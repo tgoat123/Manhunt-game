@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101D33">
+<title>Manhunt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{
+  --chalk:#E7ECEF; --paper:#F8FAFB; --ink:#101D33; --ink2:#3D4A63; --line:#CBD4DB;
+  --hider:#F0502B; --seeker:#2457F5; --zone:#6B2FD6; --ok:#1E9E6A;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --chalk:#0E1627; --paper:#16213A; --ink:#EEF2F7; --ink2:#A4B1C7; --line:#2A3858; }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--chalk);color:var(--ink);
+  font-family:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif;font-weight:500}
+button,input,select{font:inherit;color:inherit}
+.view{display:none;min-height:100dvh}
+.view.on{display:block}
+.wrap{max-width:520px;margin:0 auto;padding:20px 18px calc(32px + env(safe-area-inset-bottom))}
+h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.02em}
+.btn{border:0;border-radius:14px;padding:14px 18px;font-weight:700;font-size:17px;cursor:pointer;
+  background:var(--ink);color:var(--paper);width:100%}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.hider{background:var(--hider);color:#fff}
+.btn.seeker{background:var(--seeker);color:#fff}
+.btn.ghost{background:transparent;color:var(--ink);border:2px solid var(--line)}
+.btn.small{padding:9px 13px;font-size:14px;width:auto;border-radius:10px}
+input[type=text],input[type=number]{width:100%;padding:13px 14px;border-radius:12px;border:2px solid var(--line);
+  background:var(--paper);font-size:17px}
+input:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--seeker);outline-offset:2px}
+label.f{display:block;font-size:14px;color:var(--ink2);margin:0 0 5px}
+.card{background:var(--paper);border-radius:18px;padding:16px;margin-top:14px;border:1px solid var(--line)}
+.row{display:flex;gap:10px;align-items:center}
+.muted{color:var(--ink2);font-size:14px}
+
+/* Home */
+.hero{position:relative;padding:54px 0 26px;overflow:hidden}
+.hero h1{font-size:64px;line-height:.95;position:relative;z-index:1}
+.hero p{max-width:30ch;margin:12px 0 0;color:var(--ink2);font-size:18px;position:relative;z-index:1}
+.ring{position:absolute;right:-30px;top:30px;width:150px;height:150px;border-radius:50%;
+  border:3px solid var(--hider);opacity:0;animation:ring 3.6s ease-out infinite}
+.ring:nth-child(2){animation-delay:1.2s}.ring:nth-child(3){animation-delay:2.4s}
+.ring.core{opacity:1;animation:none;width:16px;height:16px;right:37px;top:97px;background:var(--hider);border:0}
+@keyframes ring{0%{transform:scale(.1);opacity:.9}100%{transform:scale(1.5);opacity:0}}
+.codeIn{letter-spacing:.35em;text-transform:uppercase;font-weight:800;text-align:center;font-size:24px}
+.or{display:flex;align-items:center;gap:12px;color:var(--ink2);margin:18px 0;font-size:14px}
+.or:before,.or:after{content:"";flex:1;height:1px;background:var(--line)}
+.check{display:flex;gap:10px;align-items:flex-start;margin-top:16px;font-size:14px;color:var(--ink2)}
+.check input{margin-top:3px;width:18px;height:18px}
+.mode{display:inline-block;margin-top:18px;font-size:13px;padding:6px 10px;border-radius:999px;background:var(--paper);border:1px solid var(--line);color:var(--ink2)}
+
+/* Lobby */
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.roomcode{font-size:46px;font-weight:800;letter-spacing:.14em;line-height:1}
+#lobbyMap,#gameMap{background:#cfd8dc}
+#lobbyMap{height:210px;border-radius:14px;margin-top:10px}
+.pl{list-style:none;margin:10px 0 0;padding:0}
+.pl li{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.pl li:last-child{border:0}
+.chip{font-size:13px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--chalk);color:var(--ink2)}
+.chip.hider{background:var(--hider);color:#fff}.chip.seeker{background:var(--seeker);color:#fff}
+.wheelBox{position:relative;width:280px;margin:12px auto 4px}
+#wheel{width:280px;height:280px;display:block}
+.pointer{position:absolute;left:50%;top:-6px;transform:translateX(-50%);width:0;height:0;
+  border-left:12px solid transparent;border-right:12px solid transparent;border-top:24px solid var(--ink);z-index:2}
+#spinResult{text-align:center;font-weight:800;font-size:20px;min-height:28px;margin:8px 0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+details summary{cursor:pointer;font-weight:800;font-size:18px;list-style:none}
+details summary::-webkit-details-marker{display:none}
+
+/* Game */
+#gameView{position:relative;height:100dvh;overflow:hidden}
+#gameMap{position:absolute;inset:0}
+.hud{position:absolute;z-index:500;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top));display:flex;gap:8px;pointer-events:none}
+.gauge{flex:1;background:var(--ink);color:var(--paper);border-radius:14px;padding:9px 12px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+@media (prefers-color-scheme: dark){ .gauge{background:#0A1020;color:#EEF2F7} }
+.gauge small{display:flex;align-items:center;gap:6px;font-size:12px;opacity:.85}
+.gauge b{font-size:28px;font-variant-numeric:tabular-nums;line-height:1.1;letter-spacing:-.01em}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.banner{position:absolute;z-index:500;left:10px;right:10px;top:calc(88px + env(safe-area-inset-top));
+  background:var(--zone);color:#fff;border-radius:12px;padding:10px 14px;font-weight:700;display:none}
+.banner.on{display:block}
+.rolechip{position:absolute;z-index:500;left:10px;top:calc(138px + env(safe-area-inset-top));pointer-events:none}
+.mapbtns{position:absolute;z-index:500;right:10px;top:calc(138px + env(safe-area-inset-top));display:flex;flex-direction:column;gap:8px}
+.mapbtns button{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:9px 11px;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.dock{position:absolute;z-index:500;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
+.sheet{background:var(--paper);border-radius:16px;padding:12px 14px;max-height:36dvh;overflow:auto;display:none;box-shadow:0 2px 14px rgba(0,0,0,.3)}
+.sheet.on{display:block}
+.end{position:absolute;inset:0;z-index:900;background:rgba(16,29,51,.88);display:none;align-items:center;justify-content:center;padding:24px}
+.end.on{display:flex}
+.endCard{background:var(--paper);border-radius:22px;padding:26px;max-width:400px;width:100%;text-align:center}
+.endCard h2{font-size:38px;line-height:1}
+.pingDot{width:22px;height:22px;border-radius:50%;background:var(--hider);border:3px solid #fff;box-shadow:0 0 0 0 rgba(240,80,43,.7);animation:pulse 1.8s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 22px rgba(240,80,43,0)}100%{box-shadow:0 0 0 0 rgba(240,80,43,0)}}
+.toast{position:fixed;z-index:2000;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  background:var(--ink);color:var(--paper);padding:11px 16px;border-radius:12px;font-weight:700;font-size:15px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:88vw;text-align:center}
+.toast.on{opacity:1}
+@media (prefers-reduced-motion: reduce){ .ring,.pingDot{animation:none} .toast{transition:none} }
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<section class="view on" id="homeView">
+  <div class="wrap">
+    <div class="hero">
+      <i class="ring"></i><i class="ring"></i><i class="ring"></i><i class="ring core"></i>
+      <h1>Manhunt</h1>
+      <p>One hider. A location ping every few minutes. A circle that keeps closing in.</p>
+    </div>
+    <label class="f" for="nameIn">Your name</label>
+    <input type="text" id="nameIn" maxlength="14" autocomplete="off" placeholder="e.g. Sam">
+    <div style="height:16px"></div>
+    <button class="btn hider" id="createBtn">Create a room</button>
+    <div class="or">or join your friends</div>
+    <div class="row">
+      <input type="text" id="codeIn" class="codeIn" maxlength="4" placeholder="CODE" autocomplete="off" aria-label="Room code">
+      <button class="btn seeker" id="joinBtn" style="width:auto;white-space:nowrap">Join</button>
+    </div>
+    <label class="check"><input type="checkbox" id="practice"> <span>Practice mode: tap the map to move yourself. Handy for testing on a computer.</span></label>
+    <span class="mode" id="modeBadge"></span>
+  </div>
+</section>
+
+<!-- LOBBY -->
+<section class="view" id="lobbyView">
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <div class="muted">Room code</div>
+        <div class="roomcode" id="roomCode">----</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn small" id="shareBtn">Share link</button>
+        <button class="btn small ghost" id="leaveBtn">Leave</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Players <span class="muted" id="plCount"></span></h3>
+      <ul class="pl" id="plList"></ul>
+    </div>
+
+    <div class="card">
+      <h3>Pick the hider</h3>
+      <div class="wheelBox"><div class="pointer"></div><canvas id="wheel" width="560" height="560" aria-label="Spinner wheel"></canvas></div>
+      <div id="spinResult" aria-live="polite"></div>
+      <button class="btn" id="spinBtn">Spin the wheel</button>
+      <div class="muted" id="spinHint" style="margin-top:8px;text-align:center"></div>
+    </div>
+
+    <div class="card">
+      <details open>
+        <summary>Game settings</summary>
+        <div class="muted" style="margin:6px 0 10px" id="setHint">Only the host can change these.</div>
+        <div class="grid2">
+          <div><label class="f" for="s_pingMin">Ping every (min)</label><input type="number" id="s_pingMin" min="1" max="30" step="1"></div>
+          <div><label class="f" for="s_headStartMin">Hider head start (min)</label><input type="number" id="s_headStartMin" min="0" max="30" step="1"></div>
+          <div><label class="f" for="s_radius">Starting radius (m)</label><input type="number" id="s_radius" min="100" max="20000" step="50"></div>
+          <div><label class="f" for="s_minRadius">Smallest radius (m)</label><input type="number" id="s_minRadius" min="30" max="5000" step="10"></div>
+          <div><label class="f" for="s_shrinkMin">Border closes every (min)</label><input type="number" id="s_shrinkMin" min="1" max="60" step="1"></div>
+          <div><label class="f" for="s_shrinkPct">Each closing shrinks by (%)</label><input type="number" id="s_shrinkPct" min="5" max="80" step="5"></div>
+        </div>
+        <div class="muted" style="margin:14px 0 6px">Border center: tap the map, or</div>
+        <button class="btn small" id="useMyLoc">Use my location</button>
+        <div id="lobbyMap"></div>
+      </details>
+    </div>
+
+    <div style="height:16px"></div>
+    <button class="btn hider" id="startBtn">Start game</button>
+    <div class="muted" id="startHint" style="margin-top:8px;text-align:center"></div>
+  </div>
+</section>
+
+<!-- GAME -->
+<section class="view" id="gameView">
+  <div id="gameMap"></div>
+  <div class="hud">
+    <div class="gauge"><small><i class="dot" style="background:var(--hider)"></i><span id="pingLbl">Next ping</span></small><b id="pingT">--:--</b></div>
+    <div class="gauge"><small><i class="dot" style="background:#A98BFF"></i><span id="bordLbl">Border closes in</span></small><b id="bordT">--:--</b></div>
+  </div>
+  <div class="banner" id="outBanner">You're outside the border. Get back inside.</div>
+  <div class="rolechip"><span class="chip" id="roleChip">-</span></div>
+  <div class="mapbtns">
+    <button id="ctrMe">Me</button>
+    <button id="ctrPing">Last ping</button>
+    <button id="ctrZone">Zone</button>
+  </div>
+  <div class="dock">
+    <div class="sheet" id="sheet"></div>
+    <div class="row">
+      <button class="btn ghost small" id="plBtn" style="background:var(--paper)">Players</button>
+      <button class="btn seeker" id="foundBtn">I found the hider</button>
+    </div>
+    <button class="btn small ghost" id="timeBtn" style="display:none;background:var(--paper)">Host: time's up, hider wins</button>
+  </div>
+  <div class="end" id="endOv">
+    <div class="endCard">
+      <h2 id="endTitle"></h2>
+      <p class="muted" id="endSub" style="font-size:16px;margin:10px 0 20px"></p>
+      <button class="btn" id="againBtn">Back to lobby</button>
+      <div class="muted" id="againHint"></div>
+    </div>
+  </div>
+</section>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* =====================================================================
+   SETUP: paste your Firebase Realtime Database URL here to play online
+   with friends on different phones. Leave it empty for Demo mode, which
+   only syncs between tabs on the same device.
+   Example: "https://my-manhunt-default-rtdb.firebaseio.com"
+   ===================================================================== */
+const FIREBASE_URL = "";
+
+const DEFAULTS = { pingMin:2, headStartMin:1, radius:1000, shrinkMin:10, shrinkPct:30, minRadius:100 };
+const FALLBACK = { lat:40.7829, lng:-73.9654 };
+const SLICE = ['#2457F5','#F0502B','#1E9E6A','#6B2FD6','#E8A317','#0F8FA8','#D6336C','#3D4A63'];
+const WORLD = [[-85,-180],[-85,180],[85,180],[85,-180]];
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = ms => { ms=Math.max(0,Math.ceil(ms/1000)); return Math.floor(ms/60)+':'+String(ms%60).padStart(2,'0'); };
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const clone = o => o==null?null:JSON.parse(JSON.stringify(o));
+
+let toastT;
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),2800); }
+
+/* ---------------- Backend (Demo or Firebase) ---------------- */
+function applyUpdates(obj, updates){
+  for(const [path,val] of Object.entries(updates)){
+    const parts=path.split('/'); let o=obj;
+    for(let i=0;i<parts.length-1;i++){
+      if(typeof o[parts[i]]!=='object'||o[parts[i]]===null) o[parts[i]]={};
+      o=o[parts[i]];
+    }
+    const k=parts[parts.length-1];
+    if(val===null) delete o[k]; else o[k]=clone(val);
+  }
+  return obj;
+}
+function localBackend(){
+  const rooms={}, watchers={};
+  const bc = 'BroadcastChannel' in window ? new BroadcastChannel('manhunt-demo') : null;
+  const notify = code => (watchers[code]||[]).forEach(cb=>cb(clone(rooms[code])));
+  if(bc) bc.onmessage = e => {
+    const m=e.data;
+    if(m.type==='update'){ rooms[m.code]=applyUpdates(rooms[m.code]||{},m.updates); notify(m.code); }
+    else if(m.type==='req' && rooms[m.code]) bc.postMessage({type:'sync',code:m.code,room:rooms[m.code]});
+    else if(m.type==='sync' && !rooms[m.code]){ rooms[m.code]=m.room; notify(m.code); }
+  };
+  return {
+    online:false,
+    async get(code){
+      if(rooms[code]) return clone(rooms[code]);
+      if(!bc) return null;
+      bc.postMessage({type:'req',code}); await sleep(500);
+      return clone(rooms[code]);
+    },
+    async update(code,updates){
+      rooms[code]=applyUpdates(rooms[code]||{},updates);
+      if(bc) bc.postMessage({type:'update',code,updates});
+      notify(code);
+    },
+    watch(code,cb){
+      (watchers[code]=watchers[code]||[]).push(cb); cb(clone(rooms[code]));
+      return ()=>{ watchers[code]=watchers[code].filter(f=>f!==cb); };
+    }
+  };
+}
+function fbBackend(){
+  const url = c => FIREBASE_URL.replace(/\/$/,'')+'/rooms/'+c+'.json';
+  const get = async c => { const r=await fetch(url(c)); return r.ok ? await r.json() : null; };
+  return {
+    online:true, get,
+    async update(c,u){ await fetch(url(c),{method:'PATCH',body:JSON.stringify(u)}); },
+    watch(c,cb){
+      let last, stop=false;
+      const poll=async()=>{
+        if(stop) return;
+        try{ const r=await get(c); const s=JSON.stringify(r); if(s!==last){ last=s; cb(r); } }catch(e){}
+        setTimeout(poll,1200);
+      };
+      poll();
+      return ()=>{ stop=true; };
+    }
+  };
+}
+const db = FIREBASE_URL ? fbBackend() : localBackend();
+$('#modeBadge').textContent = db.online ? 'Online mode' : 'Demo mode: rooms only sync between tabs on this device. See the setup note to go online.';
+
+/* ---------------- Geometry ---------------- */
+function dist(a,b){
+  const R=6371000, p=Math.PI/180;
+  const dLat=(b.lat-a.lat)*p, dLng=(b.lng-a.lng)*p;
+  const h=Math.sin(dLat/2)**2+Math.cos(a.lat*p)*Math.cos(b.lat*p)*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function circlePts(c,r,n=72){
+  const pts=[], p=Math.PI/180, d=r/6371000, lat1=c.lat*p, lng1=c.lng*p;
+  for(let i=0;i<n;i++){
+    const b=i/n*2*Math.PI;
+    const lat2=Math.asin(Math.sin(lat1)*Math.cos(d)+Math.cos(lat1)*Math.sin(d)*Math.cos(b));
+    const lng2=lng1+Math.atan2(Math.sin(b)*Math.sin(d)*Math.cos(lat1),Math.cos(d)-Math.sin(lat1)*Math.sin(lat2));
+    pts.push([lat2/p,lng2/p]);
+  }
+  return pts;
+}
+const settingsOf = r => ({...DEFAULTS,...((r&&r.settings)||{})});
+const playersOf = r => Object.entries((r&&r.players)||{}).map(([id,p])=>({id,...p})).sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0));
+
+/* Border: steps down every shrinkMin, closing smoothly over the first minute of each step */
+function borderState(s, el){
+  const iv=s.shrinkMin*60000, closeMs=Math.min(60000,iv/2);
+  let r=s.radius;
+  const done=Math.max(0,Math.floor(el/iv));
+  for(let i=1;i<=done;i++){
+    const nxt=Math.max(s.minRadius, r*(1-s.shrinkPct/100));
+    const into=el-i*iv;
+    if(i===done && into<closeMs){
+      return {r:r+(nxt-r)*(into/closeMs), closing:true, nextR:nxt, nextAt:i*iv+closeMs, final:false};
+    }
+    r=nxt;
+  }
+  const nextR=Math.max(s.minRadius, r*(1-s.shrinkPct/100));
+  return {r, closing:false, nextR, nextAt:(done+1)*iv, final: r<=s.minRadius+0.5};
+}
+
+/* ---------------- Maps ---------------- */
+function makeMap(el){
+  const m=L.map(el,{zoomControl:false}).setView([FALLBACK.lat,FALLBACK.lng],15);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(m);
+  return m;
+}
+function setBorder(map, layers, c, r, nextR){
+  const ll=[c.lat,c.lng];
+  if(!layers.shade){
+    layers.shade=L.polygon([WORLD,[]],{stroke:false,fillColor:'#6B2FD6',fillOpacity:.28,interactive:false}).addTo(map);
+    layers.outline=L.circle(ll,{radius:r,color:'#6B2FD6',weight:3,fill:false,interactive:false}).addTo(map);
+    layers.next=L.circle(ll,{radius:r,color:'#6B2FD6',weight:2,dashArray:'6 8',fill:false,interactive:false}).addTo(map);
+  }
+  layers.shade.setLatLngs([WORLD,circlePts(c,r)]);
+  layers.outline.setLatLng(ll).setRadius(r);
+  layers.next.setLatLng(ll).setRadius(nextR);
+  layers.next.setStyle({opacity: nextR<r-1 ? .8 : 0});
+}
+function dotMarker(map, ll, color){
+  return L.circleMarker(ll,{radius:9,color:'#fff',weight:3,fillColor:color,fillOpacity:1}).addTo(map);
+}
+
+/* ---------------- State ---------------- */
+let me={id:'',name:''}, code='', room=null, unsub=null, view='home';
+let myPos=null, practice=false, geoWatch=null, wakeLock=null;
+let lobbyMap=null, LL={}, gameMap=null, GL={}, lobbyFit='', gameFit=false;
+let seenSpin=null, spinning=false, wheelNames=[];
+let lastPingN=-1, trail=[], trailKey='', shownPingN=-1;
+
+function show(v){
+  view=v;
+  document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id===v+'View'));
+  window.scrollTo(0,0);
+}
+
+/* ---------------- Location ---------------- */
+function startGeo(){
+  if(geoWatch!=null||!navigator.geolocation) return;
+  geoWatch=navigator.geolocation.watchPosition(p=>{
+    if(practice && myPos && myPos.faked) return;
+    myPos={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy};
+    if(view==='game') renderGame();
+  },()=>{},{enableHighAccuracy:true,maximumAge:3000,timeout:20000});
+}
+async function firstFix(ms=7000){
+  startGeo();
+  const t0=Date.now();
+  while(!myPos && Date.now()-t0<ms) await sleep(200);
+  if(!myPos && practice) myPos={...FALLBACK,faked:true};
+  return myPos;
+}
+async function wake(){ try{ wakeLock=await navigator.wakeLock.request('screen'); }catch(e){} }
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&room&&room.status==='playing') wake(); });
+
+/* ---------------- Home: create / join ---------------- */
+const savedHash=location.hash.replace('#','').toUpperCase();
+if(/^[A-Z]{4}$/.test(savedHash)) $('#codeIn').value=savedHash;
+$('#codeIn').addEventListener('input',e=>{ e.target.value=e.target.value.toUpperCase().replace(/[^A-Z]/g,''); });
+
+function readName(){
+  const n=$('#nameIn').value.trim();
+  if(!n){ toast('Enter your name first'); $('#nameIn').focus(); return null; }
+  me.name=n; me.id=n.toLowerCase().replace(/[^a-z0-9]/g,'')||('p'+Math.floor(Math.random()*1e6));
+  practice=$('#practice').checked;
+  return n;
+}
+async function createRoom(){
+  if(!readName()) return;
+  $('#createBtn').disabled=true;
+  const pos=await firstFix();
+  if(!pos) toast("Couldn't get your location. Tap the map to set the border center.");
+  const letters='ABCDEFGHJKMNPQRSTUVWXYZ';
+  let c, tries=0;
+  do{ c=Array.from({length:4},()=>letters[Math.floor(Math.random()*letters.length)]).join(''); tries++; }
+  while(tries<8 && await db.get(c));
+  const center=pos?{lat:pos.lat,lng:pos.lng}:FALLBACK;
+  await db.update(c,{
+    host:me.id, status:'lobby', createdAt:Date.now(),
+    settings:{...DEFAULTS,center},
+    ['players/'+me.id]:{name:me.name,role:'none',joinedAt:Date.now()}
+  });
+  $('#createBtn').disabled=false;
+  enterRoom(c);
+}
+async function joinRoom(){
+  if(!readName()) return;
+  const c=$('#codeIn').value.trim().toUpperCase();
+  if(c.length!==4){ toast('Enter the 4-letter room code'); return; }
+  $('#joinBtn').disabled=true;
+  const r=await db.get(c);
+  $('#joinBtn').disabled=false;
+  if(!r){ toast('No room with that code'); return; }
+  const existing=r.players&&r.players[me.id];
+  if(r.status==='playing' && !existing){ toast('That game already started'); return; }
+  startGeo();
+  if(!existing) await db.update(c,{['players/'+me.id]:{name:me.name,role:'none',joinedAt:Date.now()}});
+  else toast('Welcome back, '+me.name);
+  enterRoom(c);
+}
+function enterRoom(c){
+  code=c; room=null; seenSpin=undefined; lastPingN=-1; trail=[]; trailKey=''; shownPingN=-1; gameFit=false; lobbyFit='';
+  if(unsub) unsub();
+  unsub=db.watch(code,onRoom);
+  history.replaceState(null,'','#'+code);
+}
+function leaveRoom(){
+  if(unsub) unsub(); unsub=null;
+  if(room && room.status==='lobby') db.update(code,{['players/'+me.id]:null});
+  room=null; code=''; history.replaceState(null,'','#'); show('home');
+}
+$('#createBtn').onclick=createRoom;
+$('#joinBtn').onclick=joinRoom;
+$('#leaveBtn').onclick=leaveRoom;
+$('#shareBtn').onclick=async()=>{
+  const link=location.origin+location.pathname+'#'+code;
+  const text='Join my manhunt game. Room code: '+code;
+  try{ if(navigator.share){ await navigator.share({title:'Manhunt',text,url:link}); return; } }catch(e){ return; }
+  try{ await navigator.clipboard.writeText(link); toast('Link copied'); }catch(e){ toast('Code: '+code); }
+};
+
+/* ---------------- Room updates ---------------- */
+function onRoom(r){
+  if(!r){ return; }
+  room=r;
+  const st=r.status||'lobby';
+  if(st==='lobby'){ if(view!=='lobby') enterLobby(); renderLobby(); }
+  else { if(view!=='game') enterGame(); renderGame(); }
+}
+
+/* ---------------- Lobby ---------------- */
+const isHost = () => room && room.host===me.id;
+function enterLobby(){
+  show('lobby');
+  if(!lobbyMap){
+    lobbyMap=makeMap('lobbyMap');
+    lobbyMap.on('click',e=>{ if(isHost()) db.update(code,{'settings/center':{lat:e.latlng.lat,lng:e.latlng.lng}}); else toast('Only the host sets the border center'); });
+  }
+  setTimeout(()=>lobbyMap.invalidateSize(),150);
+  seenSpin = room.spin ? room.spin.id : null;
+  $('#spinResult').textContent='';
+  trail=[]; lastPingN=-1; wheelNames=[];
+  if(wakeLock){ wakeLock.release().catch(()=>{}); wakeLock=null; }
+}
+const remaining = r => playersOf(r).filter(p=>p.role!=='hider');
+
+function renderLobby(){
+  const r=room, s=settingsOf(r), host=isHost(), pl=playersOf(r);
+  $('#roomCode').textContent=code;
+  $('#plCount').textContent='('+pl.length+')';
+  $('#plList').innerHTML=pl.map(p=>`<li><span>${esc(p.name)}${p.id===r.host?' <span class="muted">host</span>':''}${p.id===me.id?' <span class="muted">you</span>':''}</span>${p.role==='hider'?'<span class="chip hider">Hider</span>':'<span class="chip">Seeker</span>'}</li>`).join('');
+
+  // settings
+  for(const k of Object.keys(DEFAULTS)){
+    const el=$('#s_'+k); el.disabled=!host;
+    if(document.activeElement!==el) el.value=s[k];
+  }
+  $('#setHint').textContent=host?'You are the host. Changes sync to everyone.':'Only the host can change these.';
+  $('#useMyLoc').style.display=host?'':'none';
+
+  // map
+  const c=s.center||FALLBACK;
+  setBorder(lobbyMap,LL,c,s.radius,s.radius);
+  const key=[c.lat,c.lng,s.radius].join(',');
+  if(key!==lobbyFit){ lobbyFit=key; lobbyMap.fitBounds(LL.outline.getBounds(),{padding:[12,12]}); }
+
+  // wheel
+  const sp=r.spin;
+  if(seenSpin===undefined) seenSpin = sp ? sp.id : null;
+  if(sp && sp.id!==seenSpin){
+    seenSpin=sp.id;
+    if(Date.now()-sp.t<20000 && !spinning) animateSpin(sp);
+  }
+  if(!spinning){
+    wheelNames=remaining(r).map(p=>p.name);
+    drawWheel(wheelNames,0);
+    const hs=pl.filter(p=>p.role==='hider');
+    if(hs.length) $('#spinResult').textContent=(hs.map(p=>p.name).join(' and '))+(hs.length>1?' are hiders':' is the hider');
+    else if(!sp) $('#spinResult').textContent='';
+  }
+  const canSpin=host&&!spinning&&remaining(r).length>0;
+  $('#spinBtn').disabled=!canSpin;
+  $('#spinBtn').style.display=host?'':'none';
+  $('#spinHint').textContent=host?(pl.some(p=>p.role==='hider')?'Spin again to add another hider.':'') :'The host spins the wheel.';
+
+  // start
+  const hasHider=pl.some(p=>p.role==='hider');
+  $('#startBtn').style.display=host?'':'none';
+  $('#startBtn').disabled=!hasHider||spinning;
+  $('#startHint').textContent=host?(hasHider?(pl.length<2?'Only you are here. Fine for a test run, but invite friends for the real thing.':''):'Spin the wheel to choose a hider first.'):'Waiting for the host to start.';
+}
+
+function drawWheel(names,rot){
+  const c=$('#wheel'), x=c.getContext('2d'), S=c.width, R=S/2-8;
+  x.clearRect(0,0,S,S);
+  x.save(); x.translate(S/2,S/2); x.rotate(rot*Math.PI/180);
+  const n=names.length;
+  if(!n){
+    x.beginPath(); x.arc(0,0,R,0,Math.PI*2); x.fillStyle='#8892a6'; x.fill();
+    x.rotate(-rot*Math.PI/180);
+    x.fillStyle='#fff'; x.font='700 30px "Bricolage Grotesque",system-ui,sans-serif'; x.textAlign='center';
+    x.fillText('Everyone has a role',0,10);
+  } else {
+    const a=Math.PI*2/n;
+    for(let i=0;i<n;i++){
+      x.beginPath(); x.moveTo(0,0); x.arc(0,0,R,-Math.PI/2+i*a,-Math.PI/2+(i+1)*a); x.closePath();
+      x.fillStyle=SLICE[i%SLICE.length]; x.fill();
+      x.lineWidth=5; x.strokeStyle='#fff'; x.stroke();
+      x.save(); x.rotate(-Math.PI/2+(i+.5)*a);
+      x.textAlign='right'; x.fillStyle='#fff';
+      const fs=n>8?26:34; x.font=`800 ${fs}px "Bricolage Grotesque",system-ui,sans-serif`;
+      let t=names[i]; if(t.length>10) t=t.slice(0,9)+'…';
+      x.fillText(t,R-24,fs*.35);
+      x.restore();
+    }
+  }
+  x.restore();
+  x.beginPath(); x.arc(S/2,S/2,26,0,Math.PI*2); x.fillStyle='#101D33'; x.fill();
+  x.lineWidth=6; x.strokeStyle='#fff'; x.stroke();
+}
+function spinWheel(){
+  const rem=remaining(room);
+  if(!rem.length||spinning) return;
+  const n=rem.length, a=360/n, w=Math.floor(Math.random()*n);
+  const rot=360*6-(w+.5)*a+(Math.random()-.5)*a*.7;
+  db.update(code,{spin:{id:String(Date.now()),t:Date.now(),ids:rem.map(p=>p.id),names:rem.map(p=>p.name),winner:rem[w].id,rot,dur:5200}});
+}
+function animateSpin(sp){
+  spinning=true; $('#spinBtn').disabled=true; $('#startBtn').disabled=true; $('#spinResult').textContent='';
+  const names=sp.names, t0=performance.now();
+  const step=now=>{
+    const k=Math.min(1,(now-t0)/sp.dur), e=1-Math.pow(1-k,4);
+    drawWheel(names,sp.rot*e);
+    if(k<1){ requestAnimationFrame(step); return; }
+    spinning=false;
+    const wn=names[sp.ids.indexOf(sp.winner)];
+    $('#spinResult').textContent=wn+' is hiding!';
+    if(navigator.vibrate) navigator.vibrate(150);
+    if(isHost()) db.update(code,{['players/'+sp.winner+'/role']:'hider'});
+    if(room && (room.status||'lobby')==='lobby') renderLobby();
+  };
+  requestAnimationFrame(step);
+}
+$('#spinBtn').onclick=spinWheel;
+
+for(const k of Object.keys(DEFAULTS)){
+  $('#s_'+k).addEventListener('change',e=>{
+    if(!isHost()) return;
+    let v=Number(e.target.value); const mn=Number(e.target.min), mx=Number(e.target.max);
+    if(!isFinite(v)) v=DEFAULTS[k];
+    v=Math.min(mx,Math.max(mn,v)); e.target.value=v;
+    db.update(code,{['settings/'+k]:v});
+  });
+}
+$('#useMyLoc').onclick=async()=>{
+  const p=await firstFix(5000);
+  if(!p){ toast('No location yet. Tap the map instead.'); return; }
+  db.update(code,{'settings/center':{lat:p.lat,lng:p.lng}});
+};
+$('#startBtn').onclick=()=>{
+  const pl=playersOf(room);
+  if(!pl.some(p=>p.role==='hider')) return;
+  const u={status:'playing',startedAt:Date.now(),ping:null,result:null};
+  pl.forEach(p=>{ if(p.role!=='hider') u['players/'+p.id+'/role']='seeker'; u['players/'+p.id+'/pos']=null; });
+  db.update(code,u);
+};
+
+/* ---------------- Game ---------------- */
+const myRole = () => (room&&room.players&&room.players[me.id]&&room.players[me.id].role)||'seeker';
+
+function enterGame(){
+  show('game');
+  if(!gameMap){
+    gameMap=makeMap('gameMap');
+    gameMap.on('click',e=>{
+      if(practice){ myPos={lat:e.latlng.lat,lng:e.latlng.lng,faked:true}; renderGame(); }
+    });
+  }
+  setTimeout(()=>gameMap.invalidateSize(),100);
+  lastPingN = room.ping && room.ping.n!=null ? room.ping.n : -1;
+  trail=[]; trailKey=''; shownPingN=-1; gameFit=false;
+  $('#endOv').classList.remove('on');
+  $('#sheet').classList.remove('on');
+  startGeo(); wake();
+  const role=myRole();
+  $('#roleChip').className='chip '+role;
+  $('#roleChip').textContent=role==='hider'?'You are hiding':'You are seeking';
+  $('#foundBtn').className='btn '+(role==='hider'?'hider':'seeker');
+  $('#foundBtn').textContent=role==='hider'?'I got caught':'I found the hider';
+  $('#pingLbl').textContent=role==='hider'?'Your location sent in':'Next ping';
+  $('#timeBtn').style.display=isHost()?'':'none';
+}
+
+function renderGame(){
+  const r=room; if(!r||view!=='game') return;
+  const s=settingsOf(r), role=myRole(), c=s.center||FALLBACK;
+  const started=r.startedAt||Date.now(), el=Date.now()-started;
+  const b=borderState(s,el);
+  setBorder(gameMap,GL,c,b.r,b.nextR);
+  if(!gameFit){ gameFit=true; gameMap.fitBounds(GL.outline.getBounds(),{padding:[30,30]}); }
+
+  // me
+  if(myPos){
+    const ll=[myPos.lat,myPos.lng];
+    if(!GL.me) GL.me=dotMarker(gameMap,ll,role==='hider'?'#F0502B':'#2457F5'); else GL.me.setLatLng(ll);
+  }
+
+  // hider ping
+  const p=r.ping;
+  if(p){
+    if(p.n!==shownPingN){
+      if(shownPingN>=0 || trail.length===0){ /* new ping */ }
+      if(!trail.some(t=>t.n===p.n)) trail.push({lat:p.lat,lng:p.lng,n:p.n});
+      if(shownPingN!==-1 && role!=='hider'){ toast('Ping! The hider\'s location just updated.'); if(navigator.vibrate) navigator.vibrate([200,100,200]); }
+      shownPingN=p.n;
+    }
+    const ll=[p.lat,p.lng];
+    if(!GL.ping) GL.ping=L.marker(ll,{icon:L.divIcon({className:'',html:'<div class="pingDot"></div>',iconSize:[22,22],iconAnchor:[11,11]}),zIndexOffset:1000}).addTo(gameMap);
+    else GL.ping.setLatLng(ll);
+  } else if(GL.ping){ gameMap.removeLayer(GL.ping); GL.ping=null; }
+  const tk=trail.length+':'+(r.ping?r.ping.n:'');
+  if(tk!==trailKey){
+    trailKey=tk;
+    if(!GL.trail) GL.trail=L.layerGroup().addTo(gameMap);
+    GL.trail.clearLayers();
+    trail.slice(0,-1).forEach(t=>L.circleMarker([t.lat,t.lng],{radius:6,color:'#fff',weight:2,fillColor:'#8892a6',fillOpacity:1}).bindTooltip('Ping '+(t.n+1)).addTo(GL.trail));
+  }
+
+  // seeker teammates
+  GL.mates=GL.mates||{};
+  const mates=role==='hider'?[]:playersOf(r).filter(q=>q.role==='seeker'&&q.id!==me.id&&q.pos);
+  const ids=new Set(mates.map(q=>q.id));
+  Object.keys(GL.mates).forEach(id=>{ if(!ids.has(id)){ gameMap.removeLayer(GL.mates[id]); delete GL.mates[id]; } });
+  mates.forEach(q=>{
+    const ll=[q.pos.lat,q.pos.lng];
+    if(!GL.mates[q.id]) GL.mates[q.id]=dotMarker(gameMap,ll,'#5b83ff').bindTooltip(q.name,{permanent:true,direction:'top',offset:[0,-8]});
+    else GL.mates[q.id].setLatLng(ll);
+  });
+
+  // HUD
+  const hs=s.headStartMin*60000, pi=s.pingMin*60000;
+  const n=el<hs?-1:Math.floor((el-hs)/pi);
+  const nextPing=el<hs?hs-el:hs+(n+1)*pi-el;
+  $('#pingLbl').textContent = el<hs ? (role==='hider'?'Head start. Go hide':'Hider head start') : (role==='hider'?'Your location sent in':'Next ping');
+  $('#pingT').textContent=fmt(nextPing);
+  if(b.final){ $('#bordLbl').textContent='Final circle'; $('#bordT').textContent=Math.round(b.r)+' m'; }
+  else if(b.closing){ $('#bordLbl').textContent='Border closing'; $('#bordT').textContent=fmt(b.nextAt-el); }
+  else { $('#bordLbl').textContent='Border closes in'; $('#bordT').textContent=fmt(b.nextAt-el); }
+
+  // outside warning
+  const out=myPos && dist(myPos,c)>b.r;
+  $('#outBanner').classList.toggle('on',!!out);
+  if(out) $('#outBanner').textContent='You are '+Math.round(dist(myPos,c)-b.r)+' m outside the border. Get back inside.';
+
+  // hider writes ping
+  if(r.status==='playing' && role==='hider' && n>=0 && n>lastPingN && myPos){
+    lastPingN=n;
+    db.update(code,{ping:{lat:myPos.lat,lng:myPos.lng,t:Date.now(),n}});
+  }
+
+  // players sheet
+  if($('#sheet').classList.contains('on')){
+    $('#sheet').innerHTML=playersOf(r).map(q=>`<div class="row" style="justify-content:space-between;padding:6px 0"><span>${esc(q.name)}${q.id===me.id?' <span class="muted">you</span>':''}</span><span class="chip ${q.role}">${q.role==='hider'?'Hider':'Seeker'}</span></div>`).join('');
+  }
+
+  // end overlay
+  const ended=r.status==='ended';
+  $('#endOv').classList.toggle('on',ended);
+  if(ended){
+    const res=r.result||{};
+    const seekersWon=res.winner==='seekers';
+    const mins=res.t&&r.startedAt?fmt(res.t-r.startedAt):null;
+    const iWon=(seekersWon&&role!=='hider')||(!seekersWon&&role==='hider');
+    $('#endTitle').textContent=iWon?'You won':'You lost';
+    $('#endSub').textContent=(seekersWon?'The hider was found':'The hider got away')+(res.by?' (called by '+res.by+')':'')+(mins?' after '+mins+'.':'.');
+    $('#againBtn').style.display=isHost()?'':'none';
+    $('#againHint').textContent=isHost()?'':'Waiting for the host to go back to the lobby.';
+  }
+}
+
+setInterval(()=>{
+  if(view==='game') renderGame();
+  // seekers share location with teammates every ~10s
+  if(view==='game' && room && room.status==='playing' && myRole()==='seeker' && myPos && Math.floor(Date.now()/1000)%10===0){
+    db.update(code,{['players/'+me.id+'/pos']:{lat:myPos.lat,lng:myPos.lng,t:Date.now()}});
+  }
+},1000);
+
+function endGame(winner){
+  db.update(code,{status:'ended',result:{winner,by:me.name,t:Date.now()}});
+}
+$('#foundBtn').onclick=()=>{
+  const role=myRole();
+  if(confirm(role==='hider'?'Confirm: you were caught?':'Confirm: you found the hider?')) endGame('seekers');
+};
+$('#timeBtn').onclick=()=>{ if(confirm("End the game and give the hider the win?")) endGame('hider'); };
+$('#againBtn').onclick=()=>{
+  const u={status:'lobby',startedAt:null,ping:null,result:null,spin:null};
+  playersOf(room).forEach(p=>{ u['players/'+p.id+'/role']='none'; u['players/'+p.id+'/pos']=null; });
+  db.update(code,u);
+};
+$('#plBtn').onclick=()=>{ $('#sheet').classList.toggle('on'); renderGame(); };
+$('#ctrMe').onclick=()=>{ if(myPos) gameMap.setView([myPos.lat,myPos.lng],17); else toast('No location yet'); };
+$('#ctrPing').onclick=()=>{ if(room.ping) gameMap.setView([room.ping.lat,room.ping.lng],17); else toast('No ping yet'); };
+$('#ctrZone').onclick=()=>{ gameMap.fitBounds(GL.outline.getBounds(),{padding:[30,30]}); };
+
+/* If the room goes back to lobby after a game, reset game-only layers */
+const _enterLobby=enterLobby;
+enterLobby=function(){
+  _enterLobby();
+  if(gameMap){
+    ['me','ping','trail'].forEach(k=>{ if(GL[k]){ gameMap.removeLayer(GL[k]); GL[k]=null; } });
+    if(GL.mates){ Object.values(GL.mates).forEach(m=>gameMap.removeLayer(m)); GL.mates={}; }
+  }
+};
+</script>
+</body>
+</html>
